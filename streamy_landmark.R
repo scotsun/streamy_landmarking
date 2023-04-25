@@ -31,6 +31,18 @@ for (b in seq_len(B)) {
   cum_nrow_superdata <- cum_nrow_superdata + nrow(batch_superX)
   batch_superX <- sweep(batch_superX, 1, batch_ref, "-")
   # calculate gradient
-  
+  grad <- numeric(p)
+  for (i in seq_len(nrow(batch_superX))) {
+    Xbar_num <- numeric(p)
+    Xbar_den <- 0
+    for (l in seq_len(nrow(batch_superX))) {
+      Xbar_num <- Xbar_num + 
+        batch_superX[l,] * (batch_superdata$t_c[l] >= batch_superdata$t_c[i]) * exp(sum(batch_superX[l,] * betas))
+      Xbar_den <- Xbar_den +
+        (batch_superdata$t_c[l] >= batch_superdata$t_c[i]) * exp(sum(batch_superX[l,] * betas))
+    }
+    grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - Xbar_num / Xbar_den)
+  }
+  # Barzilai-Borwein
 }
 
