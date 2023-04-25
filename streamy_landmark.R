@@ -1,16 +1,28 @@
 #' Streamy Landmarking
 #' 
+#' computation efficiency is bad; solve memory issue
 #' @author Scott Sun
-#' 
-B <- 100
-BATCH_SIZE <- 50
+library(progress)
+
+B <- 1000
+BATCH_SIZE <- 100
 
 ipl_star_formula <- ~ x * (poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1))
 p <-  ncol(model.matrix(ipl_star_formula, data = data.frame(x = NA, LM = NA))[,-1])
 batch_ref <- numeric(p)
-betas <- numeric(p)
+
+betas <- prev_betas <- numeric(p)
+
 cum_nrow_superdata <- 0
+
+BETAS <- matrix(NA, nrow = B, ncol = p)
+colnames(BETAS) <- colnames(model.matrix(ipl_star_formula, data = data.frame(x = 1, LM = NA))[,-1])
+ALPHAS <- numeric(B)
+pb <- progress_bar$new(
+  format = "  downloading [:bar] :percent eta: :eta",
+  total = B, clear = FALSE, width= 60)
 for (b in seq_len(B)) {
+  pb$tick()
   batch_data <- gen_df(BATCH_SIZE) # or read from file
   batch_superdata <- gen_superdata(
     dat = batch_data,
@@ -18,7 +30,7 @@ for (b in seq_len(B)) {
     s = seq(0, 7, 0.2),
     timevar = "t_c", eventvar = "delta", fixed_x = "x"
   )
-  # adaptive mean-centering
+  # adaptive mean-centering (useful when calculate streaming h0's)
   batch_superX <- model.matrix(ipl_star_formula, data = batch_superdata)[,-1]
   p <- ncol(batch_superX)
   for (k in seq_len(p)) {
@@ -29,20 +41,26 @@ for (b in seq_len(B)) {
     }
   }
   cum_nrow_superdata <- cum_nrow_superdata + nrow(batch_superX)
-  batch_superX <- sweep(batch_superX, 1, batch_ref, "-")
+  
   # calculate gradient
-  grad <- numeric(p)
+  grad <- prev_grad <- numeric(p)
   for (i in seq_len(nrow(batch_superX))) {
-    Xbar_num <- numeric(p)
-    Xbar_den <- 0
-    for (l in seq_len(nrow(batch_superX))) {
-      Xbar_num <- Xbar_num + 
-        batch_superX[l,] * (batch_superdata$t_c[l] >= batch_superdata$t_c[i]) * exp(sum(batch_superX[l,] * betas))
-      Xbar_den <- Xbar_den +
-        (batch_superdata$t_c[l] >= batch_superdata$t_c[i]) * exp(sum(batch_superX[l,] * betas))
-    }
-    grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - Xbar_num / Xbar_den)
+    Xbar_numl <- batch_superX * (batch_superdata$t_c >= batch_superdata$t_c[i]) * exp(drop(batch_superX %*% betas))
+    Xbar_denl <- (batch_superdata$t_c >= batch_superdata$t_c[i]) * exp(drop(batch_superX %*% betas))
+    grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - apply(Xbar_numl, 2, sum) / sum(Xbar_denl))
   }
-  # Barzilai-Borwein
+  # update
+  step_size <- max(1e-3 / sqrt(b), 1e-4)
+  betas <- betas - step_size * grad
+  BETAS[b,] <- betas; ALPHAS[b] <- step_size
 }
+
+BETAS <- data.frame(BETAS) 
+BETASlong <- BETAS %>% 
+  mutate(iter = 1:B) %>% 
+  pivot_longer(cols = colnames(BETAS)[1:5])
+
+ggplot(data = BETASlong,
+       aes(x = iter, y = value, color = name)) +
+  geom_line()
 

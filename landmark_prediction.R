@@ -4,6 +4,23 @@
 #' @param
 #' @return
 #' @examples
+library(tidyverse)
+library(survival)
+library(dynpred)
+
+
+gen_df <- function(n) {
+  u <- runif(n, 0, 1)
+  x <- sample(c(-1,1), size = n, prob = c(0.5, 0.5), replace = TRUE)
+  # this makes the effect time-dependent we cannot factor out a exp(LP) where LP is independent of t
+  t <- 5 * (-log(u))^(1/exp(0.3*x))
+  delta <- t <= 10
+  t_c <- pmin(t, 10)
+  
+  df <- cbind(delta, t_c, x) %>% as.data.frame()
+  df$x <- as.factor(x)
+  return(df)
+}
 
 #' generate a super dataset
 #' 
@@ -78,30 +95,43 @@ cumulative_baseline_hazard <- function(t, observed_event_time, hazard) {
   return(H0)
 }
 
-# basis function:
-# scaled according to s and g(0) = 0 (e.x. log(s + 1) )
+#'utility plot wrapper
+#'CS(3|s) in true values & standard cox predictions
+simulation_cond_surv_plot <- function(df) {
+  mod <- coxph(Surv(t_c, delta) ~ x, data = df, model = TRUE)
+  
+  t <- seq(0, 7, 0.05)
+  CS_w_est1 <- summary(
+    survfit(mod, newdata = data.frame(x = as.factor(1)), se.fit = FALSE), 
+    times = t + 3
+  )[["surv"]] / summary(
+    survfit(mod, newdata = data.frame(x = as.factor(1)), se.fit = FALSE), 
+    times = seq(0, 7, 0.05)
+  )[["surv"]]
+  CS_w_true1 <- exp(- ((t + 3)/5)^(exp(0.3)) + (t/5)^(exp(0.3)))
+  
+  CS_w_est2 <- summary(
+    survfit(mod, newdata = data.frame(x = as.factor(-1)), se.fit = FALSE), 
+    times = t + 3
+  )[["surv"]] / summary(
+    survfit(mod, newdata = data.frame(x = as.factor(-1)), se.fit = FALSE), 
+    times = seq(0, 7, 0.05)
+  )[["surv"]]
+  CS_w_true2 <- exp(- ((t + 3)/5)^(exp(-0.3)) + (t/5)^(exp(-0.3)))
+  
+  plot(t, CS_w_est1, 
+       col = "darkolivegreen3", 
+       type = "l", lty = "dotted", lwd = 3,
+       ylab = "CS(3|s)",
+       xlab = "s (landmarking time)", ylim = c(0,1))
+  lines(t, CS_w_true1, col = "chartreuse4", lwd = 3)
+  lines(t, CS_w_est2, col = "coral", lty = "dotted", lwd = 3)
+  lines(t, CS_w_true2, col = "coral3", lwd = 3)
+  legend(4.6, 1,
+         legend = c("Case", "Control", "Predicted Case", "Predicted Control"),
+         col = c("chartreuse4", "coral3", "darkolivegreen3", "coral"),
+         lty = c("solid", "solid", "dotted", "dotted"),
+         lwd = 3)
+}
 
-ipl_dat <- gen_superdata(dat = df, w = 3, s = seq(0, 7, 1), timevar = "t_c", eventvar = "delta", fixed_x = "x")
-ipl_star <- coxph(Surv(t_c, delta) ~ x*(poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1)),
-                  data = ipl_dat, model = TRUE, method = "breslow",
-                  x = TRUE)
-ipl_star$bhazard <- baseline_hazard(ipl_dat, ipl_star, "t_c", "delta")
-
-simulation_cond_surv_plot()
-points(seq(0, 7, 0.5),
-       landmarking_predict(
-         ipl_star,
-         data.frame(x = factor(1, levels = c(-1, 1)), LM = seq(0, 7, 0.5)),
-         3,
-         seq(0, 7, 0.5)
-       ),
-       pch = 19, col = "darkolivegreen3")
-points(seq(0, 7, 0.5),
-       landmarking_predict(
-         ipl_star,
-         data.frame(x = factor(-1, levels = c(-1, 1)), LM = seq(0, 7, 0.5)),
-         3,
-         seq(0, 7, 0.5)
-       ),
-       pch = 19, col = "coral")
 
