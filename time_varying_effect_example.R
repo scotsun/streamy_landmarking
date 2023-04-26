@@ -13,7 +13,6 @@ ipl_dat <- gen_superdata(dat = df, w = 3, s = seq(0, 7, 1), timevar = "t_c", eve
 ipl_star <- coxph(Surv(t_c, delta) ~ x*(poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1)),
                   data = ipl_dat, model = TRUE, method = "breslow",
                   x = TRUE)
-coef(ipl_star)
 ipl_star$bhazard <- baseline_hazard(ipl_dat, ipl_star, "t_c", "delta")
 # conditional survival, time-window w = 3
 # the simple/regular cox model does not pick up the dynamic variation at all
@@ -42,10 +41,10 @@ plot(survfit(mod, newdata = data.frame(x = as.factor(1)), se.fit = FALSE),
      ylab = "S(t)",
      xlab = "time",
      main = "Cox-PH model gives incorrect survival predictions with time-varying effects")
-lines(sort(t_c), 
-      exp(-(sort(t_c)/5)^(4/3)), col = "chartreuse4",
+lines(sort(df$t_c), 
+      exp(-(sort(df$t_c)/5)^(4/3)), col = "chartreuse4",
       lwd = 3)
-lines(sort(t_c),
+lines(sort(df$t_c),
       summary(survfit(mod, newdata = data.frame(x = as.factor(-1)), se.fit = FALSE), times = sort(t_c))[["surv"]], 
       col = "coral", lty = "dotted", lwd = 3)
 lines(sort(t_c), exp(-(sort(t_c)/5)^(3/4)), col = "coral3", lwd = 3)

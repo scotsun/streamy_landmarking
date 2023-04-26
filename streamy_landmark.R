@@ -4,7 +4,7 @@
 #' @author Scott Sun
 library(progress)
 
-B <- 1000
+B <- 200
 BATCH_SIZE <- 100
 
 ipl_star_formula <- ~ x * (poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1))
@@ -50,7 +50,7 @@ for (b in seq_len(B)) {
     grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - apply(Xbar_numl, 2, sum) / sum(Xbar_denl))
   }
   # update
-  step_size <- max(1e-3 / sqrt(b), 1e-4)
+  step_size <- 5e-3
   betas <- betas - step_size * grad
   BETAS[b,] <- betas; ALPHAS[b] <- step_size
 }

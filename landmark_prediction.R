@@ -127,7 +127,7 @@ simulation_cond_surv_plot <- function(df) {
   lines(t, CS_w_true1, col = "chartreuse4", lwd = 3)
   lines(t, CS_w_est2, col = "coral", lty = "dotted", lwd = 3)
   lines(t, CS_w_true2, col = "coral3", lwd = 3)
-  legend(4.6, 1,
+  legend("topleft",
          legend = c("Case", "Control", "Predicted Case", "Predicted Control"),
          col = c("chartreuse4", "coral3", "darkolivegreen3", "coral"),
          lty = c("solid", "solid", "dotted", "dotted"),

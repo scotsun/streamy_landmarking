@@ -1,0 +1,23 @@
+---
+title: "write-up"
+author: "group"
+date: "2023-04-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Simulation
+
+$$
+\begin{aligned}
+    X &\sim \mathrm{Unif}\{-1, 1\} \\
+    T &\sim S(t|X) = \exp\Big\{-\Big(\frac{t}{5}\Big)^{\exp(0.3X)}\Big\} \\
+    C &= 10
+\end{aligned}
+$$
+This particular scenario does not allow for expressing $S(t|x)$ using the standard Cox-PH model, which assumes that $S(t|x) = \exp(-H_0(t)\exp(\beta x))$, where the value of $\beta$ remains constant over time.
+
+
