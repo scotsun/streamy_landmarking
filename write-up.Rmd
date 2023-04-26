@@ -2,11 +2,43 @@
 title: "write-up"
 author: "group"
 date: "2023-04-25"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(kableExtra)
+```
+
+# Table
+
+```{r, echo=FALSE}
+notations <- data.frame(
+  notation = c("$s$",
+               "$w$",
+               "$\\mathrm{CS}(w|s)$",
+               "$R(t)$"),
+  meaning = c("landmark point",
+              "time window width",
+              "conditional survial, $P(T \\ge w + s | T \\ge s)$",
+              "risk set at $t$, $\\{i:t_i \\ge t\\}$")
+)
+
+kable(
+  notations,
+  format = "latex",
+  escape = FALSE,
+  align = "l",
+  booktabs = TRUE
+) %>%
+  kable_styling(position = "center", latex_options = "HOLD_position") %>%
+  footnote(
+    general = c("$a^2+b^2=c^2\\\\sigma^2$"),
+    number = c("Hello\ there! \\\\textit{Hello\ there!}"),
+    footnote_as_chunk = TRUE,
+    escape = FALSE
+  )
 ```
 
 # Simulation
@@ -17,7 +49,4 @@ $$
     T &\sim S(t|X) = \exp\Big\{-\Big(\frac{t}{5}\Big)^{\exp(0.3X)}\Big\} \\
     C &= 10
 \end{aligned}
-$$
-This particular scenario does not allow for expressing $S(t|x)$ using the standard Cox-PH model, which assumes that $S(t|x) = \exp(-H_0(t)\exp(\beta x))$, where the value of $\beta$ remains constant over time.
-
-
+$$ This particular scenario does not allow for expressing $S(t|x)$ using the standard Cox-PH model, which assumes that $S(t|x) = \exp(-H_0(t)\exp(\beta x))$, where the value of $\beta$ remains constant over time.

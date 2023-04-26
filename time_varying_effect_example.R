@@ -1,7 +1,7 @@
 library(tidyverse)
 library(survival)
 library(dynpred)
-
+source("./landmark_prediction.R")
 
 set.seed(561)
 df <- lapply(1:10, function(i) gen_df(500)) %>% 
@@ -39,17 +39,16 @@ mod <- coxph(Surv(t_c, delta) ~ x, data = df, model = TRUE)
 plot(survfit(mod, newdata = data.frame(x = as.factor(1)), se.fit = FALSE), 
      col = "darkolivegreen3", lty = "dotted", lwd = 3,
      ylab = "S(t)",
-     xlab = "time",
-     main = "Cox-PH model gives incorrect survival predictions with time-varying effects")
+     xlab = "t (time)")
 lines(sort(df$t_c), 
       exp(-(sort(df$t_c)/5)^(4/3)), col = "chartreuse4",
       lwd = 3)
 lines(sort(df$t_c),
-      summary(survfit(mod, newdata = data.frame(x = as.factor(-1)), se.fit = FALSE), times = sort(t_c))[["surv"]], 
+      summary(survfit(mod, newdata = data.frame(x = as.factor(-1)), se.fit = FALSE), times = sort(df$t_c))[["surv"]], 
       col = "coral", lty = "dotted", lwd = 3)
-lines(sort(t_c), exp(-(sort(t_c)/5)^(3/4)), col = "coral3", lwd = 3)
-legend(7, 1,
-       legend = c("Case", "Control", "Predicted Case", "Predicted Control"),
+lines(sort(df$t_c), exp(-(sort(df$t_c)/5)^(3/4)), col = "coral3", lwd = 3)
+legend("topright",
+       legend = c("Case (X = -1)", "Control (X = 1)", "Predicted Case", "Predicted Control"),
        col = c("chartreuse4", "coral3", "darkolivegreen3", "coral"),
        lty = c("solid", "solid", "dotted", "dotted"),
        lwd = 3)

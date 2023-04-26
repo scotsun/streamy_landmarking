@@ -122,13 +122,13 @@ simulation_cond_surv_plot <- function(df) {
   plot(t, CS_w_est1, 
        col = "darkolivegreen3", 
        type = "l", lty = "dotted", lwd = 3,
-       ylab = "CS(3|s)",
-       xlab = "s (landmarking time)", ylim = c(0,1))
+       ylab = "CS(3|t)",
+       xlab = "t (time)", ylim = c(0,1))
   lines(t, CS_w_true1, col = "chartreuse4", lwd = 3)
   lines(t, CS_w_est2, col = "coral", lty = "dotted", lwd = 3)
   lines(t, CS_w_true2, col = "coral3", lwd = 3)
   legend("topleft",
-         legend = c("Case", "Control", "Predicted Case", "Predicted Control"),
+         legend = c("Case (X = -1)", "Control (X = 1)", "Predicted Case", "Predicted Control"),
          col = c("chartreuse4", "coral3", "darkolivegreen3", "coral"),
          lty = c("solid", "solid", "dotted", "dotted"),
          lwd = 3)

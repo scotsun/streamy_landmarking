@@ -3,8 +3,9 @@
 #' computation efficiency is bad; solve memory issue
 #' @author Scott Sun
 library(progress)
+source("./landmark_prediction.R")
 
-B <- 200
+B <- 500
 BATCH_SIZE <- 100
 
 ipl_star_formula <- ~ x * (poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1))
@@ -50,7 +51,7 @@ for (b in seq_len(B)) {
     grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - apply(Xbar_numl, 2, sum) / sum(Xbar_denl))
   }
   # update
-  step_size <- 5e-3
+  step_size <- 2e-3
   betas <- betas - step_size * grad
   BETAS[b,] <- betas; ALPHAS[b] <- step_size
 }
