@@ -5,7 +5,17 @@
 library(progress)
 source("./landmark_prediction.R")
 
-B <- 500
+avg_ipl_loss <- function(n, delta, t_c, superX, betas) {
+  loss <- 0
+  for (i in seq_len(length(t_c))) {
+    risk_sum <- sum((t_c >= t_c[i]) * exp(drop(superX %*% betas)))
+    loss <- loss + delta[i] * (drop(superX[i,] %*% betas) - log(risk_sum))
+  }
+  return(-loss/n)
+}
+
+
+B <- 100
 BATCH_SIZE <- 100
 
 ipl_star_formula <- ~ x * (poly(LM/7, degree = 1, raw = TRUE) + I(exp(LM/7) - 1))
@@ -17,8 +27,8 @@ betas <- prev_betas <- numeric(p)
 cum_nrow_superdata <- 0
 
 BETAS <- matrix(NA, nrow = B, ncol = p)
+LOSSES <- rep(NA, B)
 colnames(BETAS) <- colnames(model.matrix(ipl_star_formula, data = data.frame(x = 1, LM = NA))[,-1])
-ALPHAS <- numeric(B)
 pb <- progress_bar$new(
   format = "  downloading [:bar] :percent eta: :eta",
   total = B, clear = FALSE, width= 60)
@@ -51,17 +61,41 @@ for (b in seq_len(B)) {
     grad <- grad - batch_superdata$delta[i] * (batch_superX[i,] - apply(Xbar_numl, 2, sum) / sum(Xbar_denl))
   }
   # update
-  step_size <- 2e-3
+  step_size <- max(2e-3 / b, 1e-5)
   betas <- betas - step_size * grad
-  BETAS[b,] <- betas; ALPHAS[b] <- step_size
+  BETAS[b,] <- betas
+  
+  loss <- avg_ipl_loss(
+    n = nrow(batch_superX),
+    delta = batch_superdata$delta,
+    t_c = batch_superdata$t_c,
+    superX = batch_superX,
+    betas = betas
+  )
+  LOSSES[b] <- loss
 }
 
-BETAS <- data.frame(BETAS) 
+plot(seq_len(B), LOSSES, type = "l",
+     ylab = "loss", xlab = "iter")
+
+BETAS <- data.frame(BETAS)
+# BEATS_bar <- sweep(apply(BETAS, 2, cumsum), 1, seq(1,B), "/")
+
+
 BETASlong <- BETAS %>% 
   mutate(iter = 1:B) %>% 
-  pivot_longer(cols = colnames(BETAS)[1:5])
+  pivot_longer(cols = colnames(BETAS)[1:5]) %>% 
+  mutate(name = recode(name,
+                       "I.exp.LM.7....1." = "exp(s/7) - 1",
+                       "poly.LM.7..degree...1..raw...TRUE." = "(s/7)",
+                       "x.I.exp.LM.7....1." = "x:(exp(s/7) - 1)",
+                       "x.poly.LM.7..degree...1..raw...TRUE." = "x:(s/7)"))
 
 ggplot(data = BETASlong,
        aes(x = iter, y = value, color = name)) +
-  geom_line()
+  geom_line() +
+  labs(color = "", y = "estimates") +
+  guides(color=guide_legend(nrow=1, byrow=TRUE)) +
+  theme_bw() +
+  theme(legend.position = "bottom")
 

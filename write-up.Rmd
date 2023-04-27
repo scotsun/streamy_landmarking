@@ -1,8 +1,11 @@
 ---
-title: "write-up"
+title: "Streaming Dynamic Prediction for Time-To-Event Data"
+subtitle: "GitHub: https://github.com/scotsun/streamy_landmarking"
 author: "group"
-date: "2023-04-25"
 output: pdf_document
+header-includes:
+  - \usepackage[ruled,vlined]{algorithm2e}
+  - \SetKwInput{kwInit}{Init}{}{}
 ---
 
 ```{r setup, include=FALSE}
@@ -11,15 +14,15 @@ library(knitr)
 library(kableExtra)
 ```
 
-# Table
+# Notation Table
 
 ```{r, echo=FALSE}
 notations <- data.frame(
-  notation = c("$s$",
+  Symbol = c("$s$", "$l \\in \\{1,2,...,L\\}$",
                "$w$",
                "$\\mathrm{CS}(w|s)$",
                "$R(t)$"),
-  meaning = c("landmark point",
+  Meaning = c("landmark point", "landmark point index",
               "time window width",
               "conditional survial, $P(T \\ge w + s | T \\ge s)$",
               "risk set at $t$, $\\{i:t_i \\ge t\\}$")
@@ -30,23 +33,108 @@ kable(
   format = "latex",
   escape = FALSE,
   align = "l",
-  booktabs = TRUE
+  booktabs = TRUE,
+  caption = "Notations"
 ) %>%
-  kable_styling(position = "center", latex_options = "HOLD_position") %>%
-  footnote(
-    general = c("$a^2+b^2=c^2\\\\sigma^2$"),
-    number = c("Hello\ there! \\\\textit{Hello\ there!}"),
-    footnote_as_chunk = TRUE,
-    escape = FALSE
-  )
+  kable_styling(position = "center", latex_options = "HOLD_position")
 ```
+
+# Estimates Table
+
+```{r, echo=FALSE}
+estimates <- data.frame(
+  "-8.84", "2.17", "-0.30", "4.61", "-2.08"
+)
+kable(
+  estimates,
+  format = "latex",
+  escape = FALSE,
+  align = "c",
+  booktabs = TRUE,
+  col.names = c("(s/7)", "exp(s/7) - 1", "x", "x:(exp(s/7) - 1)", "x:(s/7)"),
+  caption = "Model parameters from the IPL* algorithm."
+) %>% 
+  kable_styling(position = "center", latex_options = "HOLD_position")
+```
+
 
 # Simulation
 
 $$
 \begin{aligned}
-    X &\sim \mathrm{Unif}\{-1, 1\} \\
-    T &\sim S(t|X) = \exp\Big\{-\Big(\frac{t}{5}\Big)^{\exp(0.3X)}\Big\} \\
-    C &= 10
+    X_i &\sim \mathrm{Unif}\{-1, 1\} \\
+    T_i &\sim S(t|X) = \exp\Big\{-\Big(\frac{t}{5}\Big)^{\exp(0.3X)}\Big\} \\
+    C_i &= 10 \\
+    \delta_i & = 1\{T_i < C_i\}
 \end{aligned}
-$$ This particular scenario does not allow for expressing $S(t|x)$ using the standard Cox-PH model, which assumes that $S(t|x) = \exp(-H_0(t)\exp(\beta x))$, where the value of $\beta$ remains constant over time.
+$$ 
+This particular scenario does not allow for expressing $S(t|x)$ using the standard Cox-PH model, which assumes that $S(t|x) = \exp(-H_0(t)\exp(\beta x))$, where the value of $\beta$ remains constant over time.
+
+# Math formula
+
+As stated in the FAQ, the supermodel is a Cox model that fits the super dataset and includes user-defined basis functions of landmark time and interaction terms with predictors. The model's parameters are optimized based on the integrated partial log-likelihood $ipl(\theta) = \int_{s_1}^{s_L + w} pl(\theta(s))\psi(s)ds$, which considers the time-varying effect of the predictor and the basis function. In practice, we set the basis function as $\psi(s) = \sum \gamma_j g_j(x)$, where $g_i(s_0) = 0$. 
+
+We estimate the baseline hazard $h_0(t)$ using the Breslow (1972) estimator, but currently, the estimated baseline hazard $\hat{h}_0(t)$ is specific to the landmark time. To separate the influence of the landmark time on the estimates, we model the baseline hazard as $h_0(t|s) = h_0(t)\exp(\sum\eta_j g_j(s))$. By combining all these elements and discretizing the integrated partial log-likelihood with respect to landmark time, we obtain the formula for IPL*. The time-varying effect is appropriated by the basis function's elements.
+
+$$
+ipl^{*} =
+    \sum_{i=1}^{n}d_i \log\Big\{
+       \frac
+       {\sum_{\{s: t_i \in [s,s+w]\}}\exp\big(x_i^{\top}\sum\gamma_j g_j(s)+\sum\eta_j g_j(s)\big)}
+       {\sum_{\{s: t_i \in [s,s+w]\}}\sum_{j\in R(t_i)} \exp\big(x_i^{\top}\sum\gamma_j g_j(s)+\sum\eta_j g_j(s)\big)}
+    \Big\}
+$$
+The corresponding Breslow-like estimator of $h_0(t_i)$ is given by
+
+$$
+\hat{h}_0(t_i) =
+    \frac{\#\{s:t_i \in [s,s+w]\}}
+    {\sum_{\{s: t_i \in [s,s+w]\}}\sum_{j\in R(t_i)} \exp\big(x_i^{\top}\sum\gamma_j g_j(s)+\sum\eta_j g_j(s)\big)}
+$$
+where $t_i \in [s_1, s_L + w]$. Finally, the predicted the cumulative hazard is obtained by $\hat{H}(t_{hor}|x,t_{LM}) = \hat H_0(t_{hor})\exp\big(x_i^{\top}\sum\hat\gamma_j g_j(s)+\sum\hat\eta_j g_j(s)\big)$ and $\forall t, \hat H_0(t) = \sum_{i:t_i \le t} \hat{h}_0(t_i)$.
+
+# Implementation of the algorithms
+
+```{=tex}
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{raw dataset}
+\Output{super dataset}
+\BlankLine
+1. Fix the prediction window $w$\;
+2. Select a set of landmark points $\{s_1,...,s_L\}$\;
+3. \For{$l \in \{1,...,L\}$}{
+  Create a landmark dataset with $t_{LM} = s_l$ for truncation and $t_{hor} = s_l + w$ for administrative censoring\;
+}
+4. Stack the landmark datasets together\;
+\caption{Generating landmark datasets for the IPL* algorithm}
+\end{algorithm}
+```
+
+Of note, the coefficients for basis functions, predictors, and interaction terms are all contained inside the vector $\beta$.
+
+```{=tex}
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{Initial guess on the parameters}
+\Output{$\hat\beta$}
+\BlankLine
+\kwInit{\;batch size $n_b$\; learning rate $\alpha_b$\; basis function $g(x)$\; $\hat\beta^{(0)} = 0$\;}
+\BlankLine
+\For{$b \in \{1,...,B\}$}{
+  1. Select a mini-batch $C_b$\;
+  2. Create super dataset for $\mathcal{S}_b$\;
+  3. Update the estimate $\hat\beta^{(b)}$ by 
+  $\hat{\beta}^{(b)} = \hat{\beta}^{(b-1)} - \alpha_{b-1} \frac{\partial}{\partial\beta}ipl*$\;
+}
+\end{algorithm}
+```
+
+
+
+
+
